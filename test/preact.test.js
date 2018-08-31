@@ -1,5 +1,5 @@
 import Promise from 'bluebird';
-import { expect, default as Chai } from 'chai';
+import Chai, { expect } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
 import { h, Component } from 'preact'
 import { renderToString } from 'preact-render-to-string';
