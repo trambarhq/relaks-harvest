@@ -5,10 +5,10 @@
   "version": "0.0.1",
   "main": "./index.js",
   "preferGlobal": false,
-  "repository": "git://github.com/chung-leong/relaks-harvest.git",
-  "homepage": "https://github.com/chung-leong/relaks-harvest",
+  "repository": "git://github.com/trambarhq/relaks-harvest.git",
+  "homepage": "https://github.com/trambarhq/relaks-harvest",
   "bugs": {
-    "url": "http://github.com/chung-leong/relaks-harvest/issues"
+    "url": "http://github.com/trambarhq/relaks-harvest/issues"
   },
   "license": "MIT",
   "keywords": [
