@@ -7,17 +7,26 @@ var Meanwhile = require('./meanwhile');
  * Harvest HTML and text nodes
  *
  * @param  {ReactElement|VNode} node
+ * @param  {Object|undefined} options
  *
  * @return {Promise<ReactElement|Vnode>}
  */
-function harvest(node) {
+function harvest(node, options) {
     try {
-        var harvested = harvestNode(node, {});
+        // see if we're collecting seeds
+        var bucket = (options && options.seeds) ? [] : null;
+        var harvested = harvestNode(node, {}, bucket);
         if (!isPromise(harvested)) {
             // always return a promise
             harvested = Promise.resolve(harvested);
         }
-        return harvested;
+        if (bucket) {
+            return harvested.then(function() {
+                return bucket;
+            });
+        } else {
+            return harvested;
+        }
     } catch (err) {
         return Promise.reject(err);
     }
@@ -28,14 +37,14 @@ function harvest(node) {
  *
  * @param  {ReactElement|VNode} node
  * @param  {Object} context
+ * @param  {undefined|Array}
  *
- * @return {ReactElement|VNode|Promise<ReactElement|VNode>}
+ * @return {ReactElement|VNode|Array|null|Promise<ReactElement|VNode|null>}
  */
-function harvestNode(node, context) {
+function harvestNode(node, context, bucket) {
     if (!(node instanceof Object)) {
-		return node;
+		return (!bucket) ? node : null;
 	}
-    var asyncRendering = null;
     var type = getNodeType(node);
     if (type instanceof Function) {
         // it's a component
@@ -44,33 +53,40 @@ function harvestNode(node, context) {
         if (isPromise(rendered)) {
             // wait for asynchronous rendering to finish
             return rendered.then(function(rendered) {
-                return harvestNode(rendered, context);
+                if (bucket) {
+                    bucket.push({
+                        type: type,
+                        props: props,
+                        result: rendered
+                    });
+                }
+                return harvestNode(rendered, context, bucket);
             });
         } else {
             // harvest what was rendered
-            return harvestNode(rendered, context);
+            return harvestNode(rendered, context, bucket);
         }
     } else {
         // harvest HTML+text nodes from children
         var children = getNodeChildren(node);
         var newChildren;
         if (children instanceof Array) {
-            newChildren = harvestNodes(children, context);
+            newChildren = harvestNodes(children, context, bucket);
         } else {
-            newChildren = harvestNode(children, context);
+            newChildren = harvestNode(children, context, bucket);
         }
         if (newChildren === children) {
             // no change
-            return node;
+            return (!bucket) ? node : null;
         }
         if (isPromise(newChildren)) {
             // wait for asynchrounous rendering of children
             return newChildren.then(function(newChildren) {
-                return replaceChildren(node, newChildren);
+                return (!bucket) ? replaceChildren(node, newChildren) : null;
             });
         } else {
             // return new node with new children immediately
-            return replaceChildren(node, newChildren);
+            return (!bucket) ? replaceChildren(node, newChildren) : null;
         }
     }
 }
@@ -80,18 +96,19 @@ function harvestNode(node, context) {
  *
  * @param  {Array<ReactElement|VNode>} node
  * @param  {Object} context
+ * @param  {undefined|Array} bucket
  *
  * @return {Array|Promise<Array>}
  */
-function harvestNodes(nodes, context) {
+function harvestNodes(nodes, context, bucket) {
     var changed = false;
     var asyncRenderingRequired = false;
     var newNodes = nodes.map(function(element) {
         var harvested;
         if (element instanceof Array) {
-            harvested = harvestNodes(element, context);
+            harvested = harvestNodes(element, context, bucket);
         } else {
-            harvested = harvestNode(element, context);
+            harvested = harvestNode(element, context, bucket);
         }
         if (isPromise(harvested)) {
             asyncRenderingRequired = true;
@@ -101,12 +118,12 @@ function harvestNodes(nodes, context) {
         }
         return harvested;
     });
-    if (!asyncRenderingRequired) {
-        // return original list if nothing has changed
-        return changed ? newNodes : nodes;
-    } else {
+    if (asyncRenderingRequired) {
         // wait for promises to resolve
         return Promise.all(newNodes);
+    } else {
+        // return original list if nothing has changed
+        return changed ? newNodes : nodes;
     }
 }
 

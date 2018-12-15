@@ -299,5 +299,35 @@ describe('React test', function() {
             var element = <BrokenAsyncComponent />;
             return expect(harvest(element)).to.eventually.be.rejected;
         })
+        it ('should collect rendering of async elements', function() {
+            var echo = new Echo();
+            var garbage = (
+                <div>
+                    <h1>I'm teapot</h1>
+                    {'Australia: '}
+                    <ol>
+                        {[
+                            <li key={1}>dingo</li>,
+                            <li key={2}>emu</li>,
+                            <li key={3}>kangaroo</li>
+                        ]}
+                    </ol>
+                </div>
+            );
+            var syncElement = <SyncTestComponent>{garbage}</SyncTestComponent>;
+            var asyncElement = <SyncComponentReturningAsync echo={echo}>{garbage}</SyncComponentReturningAsync>;
+            return harvest(asyncElement, { seeds: true }).then((harvested) => {
+                expect(harvested).to.be.an('array').that.has.lengthOf(1);
+
+                var entry = harvested[0];
+                expect(entry).to.have.property('type', AsyncTestComponent);
+                expect(entry).to.have.property('props');
+                expect(entry).to.have.property('result');
+
+                var syncHTML = stringify(syncElement);
+                var asyncHTML = stringify(entry.result);
+                expect(asyncHTML).to.equal(syncHTML);
+            });
+        })
     })
 });
