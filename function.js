@@ -6,9 +6,9 @@ var Meanwhile = require('./meanwhile');
 /**
  * Harvest HTML and text nodes
  *
- * @param  {[type]} node
+ * @param  {ReactElement|VNode} node
  *
- * @return {Promise<Vnode>}
+ * @return {Promise<ReactElement|Vnode>}
  */
 function harvest(node) {
     try {
@@ -26,10 +26,10 @@ function harvest(node) {
 /**
  * Harvest HTML and text nodes
  *
- * @param  {VNode} node
+ * @param  {ReactElement|VNode} node
  * @param  {Object} context
  *
- * @return {VNode|Promise<VNode>}
+ * @return {ReactElement|VNode|Promise<ReactElement|VNode>}
  */
 function harvestNode(node, context) {
     if (!(node instanceof Object)) {
@@ -39,104 +39,39 @@ function harvestNode(node, context) {
     var type = getNodeType(node);
     if (type instanceof Function) {
         // it's a component
-        var rendered;
         var props = getNodeProps(node, type);
-        if (type.prototype && type.prototype.render instanceof Function) {
-            // stateful component
-            var componentClass = type;
-            var component = new componentClass(props, context);
-            component.props = props;
-            component.context = context;
-            var state = component.state;
-            if (componentClass.getDerivedStateFromProps) {
-                var originalState = state;
-                var derivedState = componentClass.getDerivedStateFromProps(props, originalState);
-                state = {};
-                assign(state, originalState);
-                assign(state, derivedState);
-                component.state = state;
-            } else if (component.componentWillMount) {
-                if (!IS_PREACT) {
-                    component.updater = ReactUpdater;
-                }
-                component.componentWillMount();
-                state = component.state;
-            } else if (component.UNSAFE_componentWillMount) {
-                if (!IS_PREACT) {
-                    component.updater = ReactUpdater;
-                }
-                component.UNSAFE_componentWillMount();
-                state = component.state;
-            }
-            if (component.relaks && component.renderAsync instanceof Function) {
-                // create bogus meanwhile object that doesn't do anything
-                var meanwhile = new Meanwhile(component);
-                if (IS_PREACT) {
-                    rendered = component.renderAsync(meanwhile, props, state, context);
-                } else {
-                    rendered = component.renderAsync(meanwhile);
-                }
-                if (isPromise(rendered)) {
-                    asyncRendering = rendered;
-                }
-            } else {
-                if (IS_PREACT) {
-                    rendered = component.render(props, state, context);
-                } else {
-                    rendered = component.render();
-                }
-            }
-        } else {
-            // stateless component
-            var statelessComponentFunc = type;
-            rendered = statelessComponentFunc(props, context);
-        }
-        if (!asyncRendering) {
-            // harvest what was rendered
-            return harvestNode(rendered, context);
-        } else {
+        var rendered = renderComponent(type, props, context);
+        if (isPromise(rendered)) {
             // wait for asynchronous rendering to finish
-            return asyncRendering.then(function(rendered) {
+            return rendered.then(function(rendered) {
                 return harvestNode(rendered, context);
             });
+        } else {
+            // harvest what was rendered
+            return harvestNode(rendered, context);
         }
     } else {
         // harvest HTML+text nodes from children
-        return harvestChildren(node, context);
-    }
-}
-
-/**
- * Harvest HTML and text nodes of a node's children
- *
- * @param  {ReactElement|VNode} node
- * @param  {Object} context
- *
- * @return {ReactElement|VNode|Promise<ReactElement|VNode>}
- */
-function harvestChildren(node, context) {
-    var children = getNodeChildren(node);
-    var newChildren;
-    if (children instanceof Array) {
-        newChildren = harvestNodes(children, context);
-    } else {
-        newChildren = harvestNode(children, context);
-    }
-    var asyncRendering = null;
-    if (isPromise(newChildren)) {
-        asyncRendering = newChildren;
-    }
-    if (newChildren === children) {
-        return node;
-    }
-    if (!asyncRendering) {
-        // return new node with new children immediate
-        return replaceChildren(node, newChildren);
-    } else {
-        // wait for asynchrounous rendering of children
-        return asyncRendering.then(function(newChildren) {
+        var children = getNodeChildren(node);
+        var newChildren;
+        if (children instanceof Array) {
+            newChildren = harvestNodes(children, context);
+        } else {
+            newChildren = harvestNode(children, context);
+        }
+        if (newChildren === children) {
+            // no change
+            return node;
+        }
+        if (isPromise(newChildren)) {
+            // wait for asynchrounous rendering of children
+            return newChildren.then(function(newChildren) {
+                return replaceChildren(node, newChildren);
+            });
+        } else {
+            // return new node with new children immediately
             return replaceChildren(node, newChildren);
-        });
+        }
     }
 }
 
@@ -161,7 +96,9 @@ function harvestNodes(nodes, context) {
         if (isPromise(harvested)) {
             asyncRenderingRequired = true;
         }
-        changed = changed || (harvested !== element);
+        if (harvested !== element) {
+            changed = true;
+        }
         return harvested;
     });
     if (!asyncRenderingRequired) {
@@ -171,6 +108,65 @@ function harvestNodes(nodes, context) {
         // wait for promises to resolve
         return Promise.all(newNodes);
     }
+}
+
+/**
+ * Create an instance of a component and call its render method
+ *
+ * @param  {Class} componentClass
+ * @param  {Object} props
+ * @param  {Object} context
+ *
+ * @return {ReactElement|VNode|Promise<ReactElement|VNode>}
+ */
+function renderComponent(componentClass, props, context) {
+    var rendered;
+    if (componentClass.prototype && componentClass.prototype.render instanceof Function) {
+        // stateful component
+        var component = new componentClass(props, context);
+        component.props = props;
+        component.context = context;
+        var state = component.state;
+        if (componentClass.getDerivedStateFromProps) {
+            var originalState = state;
+            var derivedState = componentClass.getDerivedStateFromProps(props, originalState);
+            state = {};
+            assign(state, originalState);
+            assign(state, derivedState);
+            component.state = state;
+        } else if (component.componentWillMount) {
+            if (!IS_PREACT) {
+                component.updater = ReactUpdater;
+            }
+            component.componentWillMount();
+            state = component.state;
+        } else if (component.UNSAFE_componentWillMount) {
+            if (!IS_PREACT) {
+                component.updater = ReactUpdater;
+            }
+            component.UNSAFE_componentWillMount();
+            state = component.state;
+        }
+        if (isAsyncComponent(component)) {
+            // create bogus meanwhile object that doesn't do anything
+            var meanwhile = new Meanwhile(component);
+            if (IS_PREACT) {
+                rendered = component.renderAsync(meanwhile, props, state, context);
+            } else {
+                rendered = component.renderAsync(meanwhile);
+            }
+        } else {
+            if (IS_PREACT) {
+                rendered = component.render(props, state, context);
+            } else {
+                rendered = component.render();
+            }
+        }
+    } else {
+        // stateless component
+        rendered = componentClass(props, context);
+    }
+    return rendered;
 }
 
 /**
@@ -252,6 +248,17 @@ function getNodeChildren(node) {
     } else {
         return node.props.children;
     }
+}
+
+/**
+ * Return true if the given component is an AsyncComponent
+ *
+ * @param  {Object}  component
+ *
+ * @return {Boolean}
+ */
+function isAsyncComponent(component) {
+    return (component.relaks && component.renderAsync instanceof Function);
 }
 
 /**
