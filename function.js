@@ -64,7 +64,11 @@ function harvestNode(node, context, bucket) {
             });
         } else {
             // harvest what was rendered
-            return harvestNode(rendered, context, bucket);
+            if (rendered instanceof Array) {
+                return harvestNodes(rendered, context, bucket);
+            } else {
+                return harvestNode(rendered, context, bucket);
+            }
         }
     } else {
         // harvest HTML+text nodes from children
