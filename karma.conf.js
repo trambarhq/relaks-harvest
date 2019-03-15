@@ -28,9 +28,10 @@ module.exports = function(config) {
         reporters: [ 'progress' ],
 
         webpack: {
+            mode: 'development',
             devtool: 'inline-source-map',
             module: {
-                loaders: [
+                rules: [
                     {
                         test: /\.jsx?$/,
                         loader: 'babel-loader',
