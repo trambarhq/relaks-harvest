@@ -47,7 +47,7 @@ function harvestNode(node, context, bucket) {
 		return (!bucket) ? node : null;
 	}
     var type = getNodeType(node);
-    if (type instanceof Function) {
+    if (isComponent(type)) {
         // it's a component
         var props = getNodeProps(node, type);
         var rendered = renderComponent(type, props, context);
@@ -185,12 +185,18 @@ function renderComponent(componentClass, props, context) {
             }
         }
     } else {
+        var func;
+        if (isMemoizedComponent(componentClass)) {
+            func = componentClass.type;
+        } else {
+            func = componentClass;
+        }
         if (Hooks) {
             // hook-based component
-            rendered = Hooks.renderComponent(componentClass, props, context);
+            rendered = Hooks.renderComponent(func, props, context);
         } else {
             // stateless component
-            rendered = componentClass(props, context);
+            rendered = func(props, context);
         }
     }
     return rendered;
@@ -231,17 +237,7 @@ function assign(dest, src) {
  * @return {String|Function}
  */
 function getNodeType(node) {
-    if (IS_PREACT) {
-        return node.nodeName;
-    } else {
-        var type = node.type;
-        if (type instanceof Object) {
-            if (type.$$typeof === Symbol.for('react.memo')) {
-                type = type.type;
-            }
-        }
-        return type;
-    }
+    return (IS_PREACT) ? node.nodeName : node.type;
 }
 
 /**
@@ -288,14 +284,47 @@ function getNodeChildren(node) {
 }
 
 /**
- * Return true if the given component is an AsyncComponent
+ * Return true if the given type is an component
  *
- * @param  {Object}  component
+ * @param  {Object}  type
  *
  * @return {Boolean}
  */
-function isAsyncComponent(component) {
-    return (component.relaks && component.renderAsync instanceof Function);
+function isComponent(type) {
+    if (type instanceof Function) {
+        return true;
+    } else if (isMemoizedComponent(type)) {
+        return isComponent(type.type);
+    } else {
+        return false;
+    }
+}
+
+/**
+ * Return true if the given type is an AsyncComponent
+ *
+ * @param  {Object}  type
+ *
+ * @return {Boolean}
+ */
+function isAsyncComponent(type) {
+    return (type.relaks && type.renderAsync instanceof Function);
+}
+
+/**
+ * Return true if the given type is a memoized component
+ *
+ * @param  {Object}  type
+ *
+ * @return {Boolean}
+ */
+function isMemoizedComponent(type) {
+    if (type instanceof Object) {
+        if (type.$$typeof === Symbol.for('react.memo')) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
