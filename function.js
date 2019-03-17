@@ -2,6 +2,7 @@ module.exports = function(React) {
 
 var IS_PREACT = (React.h instanceof Function);
 var Meanwhile = require('./meanwhile');
+var Hooks = require('./hooks')(React);
 
 /**
  * Harvest HTML and text nodes
@@ -184,8 +185,13 @@ function renderComponent(componentClass, props, context) {
             }
         }
     } else {
-        // stateless component
-        rendered = componentClass(props, context);
+        if (Hooks) {
+            // hook-based component
+            rendered = Hooks.renderComponent(componentClass, props, context);
+        } else {
+            // stateless component
+            rendered = componentClass(props, context);
+        }
     }
     return rendered;
 }
@@ -225,7 +231,17 @@ function assign(dest, src) {
  * @return {String|Function}
  */
 function getNodeType(node) {
-    return (IS_PREACT) ? node.nodeName : node.type;
+    if (IS_PREACT) {
+        return node.nodeName;
+    } else {
+        var type = node.type;
+        if (type instanceof Object) {
+            if (type.$$typeof === Symbol.for('react.memo')) {
+                type = type.type;
+            }
+        }
+        return type;
+    }
 }
 
 /**
