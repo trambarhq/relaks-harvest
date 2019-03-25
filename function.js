@@ -173,9 +173,17 @@ function renderComponent(componentClass, props, context) {
             // create bogus meanwhile object that doesn't do anything
             var meanwhile = new Meanwhile(component);
             if (IS_PREACT) {
-                rendered = component.renderAsync(meanwhile, props, state, context);
+                if (component.renderAsyncEx) {
+                    rendered = component.renderAsyncEx(meanwhile, props, state, context);
+                } else {
+                    rendered = component.renderAsync(meanwhile, props, state, context);
+                }
             } else {
-                rendered = component.renderAsync(meanwhile);
+                if (component.renderAsyncEx) {
+                    rendered = component.renderAsyncEx(meanwhile);
+                } else {
+                    rendered = component.renderAsync(meanwhile);
+                }
             }
         } else {
             if (IS_PREACT) {
