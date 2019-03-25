@@ -3,7 +3,6 @@ var Path = require('path');
 module.exports = function(config) {
     config.set({
         port: 9876,
-        colors: true,
         logLevel: config.LOG_WARNING,
         autoWatch: true,
         singleRun: false,
@@ -29,34 +28,28 @@ module.exports = function(config) {
 
         webpack: {
             mode: 'development',
-            devtool: 'inline-source-map',
             module: {
                 rules: [
                     {
                         test: /\.jsx?$/,
                         loader: 'babel-loader',
-                        exclude: Path.resolve('./node_modules'),
+                        exclude: /node_modules/,
                         query: {
-                            presets: [ 'es2015', 'react' ]
+                            presets: [
+                                'env',
+                                'react',
+                                'stage-0',
+                            ],
+                            plugins: [
+                                'syntax-async-functions',
+                                'syntax-class-properties',
+                                'transform-regenerator',
+                                'transform-runtime',
+                            ]
                         }
                     }
                 ]
             },
-            resolve: {
-                extensions: [ '.js', '.jsx' ],
-                modules: [ 'node_modules' ].map((folder) => {
-                    return Path.resolve(`./${folder}`);
-                })
-            },
-            externals: {
-                'react/addons': true,
-                'react/lib/ExecutionEnvironment': true,
-                'react/lib/ReactContext': true,
-
-                // these exist only in React 15.5+
-                'react-dom/test-utils': true,
-                'react-test-renderer/shallow': true,
-            }
         },
 
         webpackMiddleware: {
