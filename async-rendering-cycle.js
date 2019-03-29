@@ -1,6 +1,4 @@
-function Meanwhile(component, previously) {
-    var relaks = component.relaks;
-    this.component = component;
+function AsyncRenderingCycle() {
     this.synchronous = false;
     this.showingProgress = false;
     this.showingProgressInitially = false;
@@ -17,7 +15,7 @@ function Meanwhile(component, previously) {
     this.onProgress = null;
 }
 
-var prototype = Meanwhile.prototype;
+var prototype = AsyncRenderingCycle.prototype;
 
 prototype.check = function() {
 }
@@ -56,4 +54,6 @@ function getTime() {
     return (new Date) - scriptStartTime;
 }
 
-module.exports = prototype.constructor;
+export {
+    AsyncRenderingCycle
+};
