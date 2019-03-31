@@ -1,5 +1,4 @@
 import React from 'react';
-import AsyncRenderingCycle from './async-rendering-cycle';
 import { renderHookComponent } from './hooks';
 
 /**
@@ -164,9 +163,7 @@ function renderComponent(componentClass, props, context) {
             state = component.state;
         }
         if (isAsyncComponent(component)) {
-            // create bogus meanwhile object that doesn't do anything
-            var meanwhile = new AsyncRenderingCycle(component);
-            rendered = component.renderAsync(meanwhile);
+            rendered = component.renderAsyncEx();
         } else {
             rendered = component.render();
         }

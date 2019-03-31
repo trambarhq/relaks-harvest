@@ -1,5 +1,4 @@
 import Preact from 'preact';
-import AsyncRenderingCycle from './async-rendering-cycle';
 
 /**
  * Harvest HTML and text nodes
@@ -161,9 +160,7 @@ function renderComponent(componentClass, props, context) {
             state = component.state;
         }
         if (isAsyncComponent(component)) {
-            // create bogus meanwhile object that doesn't do anything
-            var meanwhile = new AsyncRenderingCycle(component);
-            rendered = component.renderAsync(meanwhile, props, state, context);
+            rendered = component.renderAsyncEx(props, state, context);
         } else {
             rendered = component.render(props, state, context);
         }
