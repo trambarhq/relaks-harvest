@@ -2,9 +2,10 @@
   "name": "relaks-harvest",
   "description": "Harvest HTML and text nodes from asynchronous Relaks components",
   "author": "Chung Leong",
-  "version": "0.0.3",
+  "version": "2.0.0",
   "main": "./index.js",
   "preferGlobal": false,
+  "sideEffects": false,
   "repository": "git://github.com/trambarhq/relaks-harvest.git",
   "homepage": "https://github.com/trambarhq/relaks-harvest",
   "bugs": {
