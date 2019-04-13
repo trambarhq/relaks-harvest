@@ -33,12 +33,12 @@ function harvest(node, options) {
  * Harvest HTML and text nodes
  *
  * @param  {VNode} node
- * @param  {Object} context
+ * @param  {Array<Object>} contexts
  * @param  {undefined|Array}
  *
  * @return {VNode|Array|null|Promise<VNode|null>}
  */
-function harvestNode(node, context, bucket) {
+function harvestNode(node, contexts, bucket) {
     if (!(node instanceof Object)) {
 		return (!bucket) ? node : null;
 	}
@@ -46,7 +46,7 @@ function harvestNode(node, context, bucket) {
     if (type instanceof Function) {
         // it's a component
         var props = getNodeProps(node, type);
-        var rendered = renderComponent(type, props, context);
+        var rendered = renderComponent(type, props, contexts);
         if (isPromise(rendered)) {
             // wait for asynchronous rendering to finish
             return rendered.then(function(rendered) {
@@ -57,14 +57,14 @@ function harvestNode(node, context, bucket) {
                         result: rendered
                     });
                 }
-                return harvestNode(rendered, context, bucket);
+                return harvestNode(rendered, contexts, bucket);
             });
         } else {
             // harvest what was rendered
             if (rendered instanceof Array) {
-                return harvestNodes(rendered, context, bucket);
+                return harvestNodes(rendered, contexts, bucket);
             } else {
-                return harvestNode(rendered, context, bucket);
+                return harvestNode(rendered, contexts, bucket);
             }
         }
     } else {
@@ -72,9 +72,9 @@ function harvestNode(node, context, bucket) {
         var children = getNodeChildren(node);
         var newChildren;
         if (children instanceof Array) {
-            newChildren = harvestNodes(children, context, bucket);
+            newChildren = harvestNodes(children, contexts, bucket);
         } else {
-            newChildren = harvestNode(children, context, bucket);
+            newChildren = harvestNode(children, contexts, bucket);
         }
         if (newChildren === children) {
             // no change
@@ -96,20 +96,20 @@ function harvestNode(node, context, bucket) {
  * Harvest HTML and text nodes from an array
  *
  * @param  {Array<VNode>} node
- * @param  {Object} context
+ * @param  {Array<Object>} contexts
  * @param  {undefined|Array} bucket
  *
  * @return {Array|Promise<Array>}
  */
-function harvestNodes(nodes, context, bucket) {
+function harvestNodes(nodes, contexts, bucket) {
     var changed = false;
     var asyncRenderingRequired = false;
     var newNodes = nodes.map(function(element) {
         var harvested;
         if (element instanceof Array) {
-            harvested = harvestNodes(element, context, bucket);
+            harvested = harvestNodes(element, contexts, bucket);
         } else {
-            harvested = harvestNode(element, context, bucket);
+            harvested = harvestNode(element, contexts, bucket);
         }
         if (isPromise(harvested)) {
             asyncRenderingRequired = true;
@@ -131,44 +131,67 @@ function harvestNodes(nodes, context, bucket) {
 /**
  * Create an instance of a component and call its render method
  *
- * @param  {Class} componentClass
+ * @param  {Function} type
  * @param  {Object} props
- * @param  {Object} context
+ * @param  {Array<Object>} contexts
  *
  * @return {VNode|Promise<VNode>}
  */
-function renderComponent(componentClass, props, context) {
-    var rendered;
-    if (componentClass.prototype && componentClass.prototype.render instanceof Function) {
-        // stateful component
-        var component = new componentClass(props, context);
-        component.props = props;
-        component.context = context;
-        var state = component.state;
-        if (componentClass.getDerivedStateFromProps) {
-            var originalState = state;
-            var derivedState = componentClass.getDerivedStateFromProps(props, originalState);
-            state = {};
-            assign(state, originalState);
-            assign(state, derivedState);
-            component.state = state;
-        } else if (component.componentWillMount) {
-            component.componentWillMount();
-            state = component.state;
-        } else if (component.UNSAFE_componentWillMount) {
-            component.UNSAFE_componentWillMount();
-            state = component.state;
-        }
-        if (isAsyncComponent(component)) {
-            rendered = component.renderAsyncEx(props, state, context);
-        } else {
-            rendered = component.render(props, state, context);
-        }
+function renderComponent(type, props, contexts) {
+    if (type.prototype && type.prototype.render instanceof Function) {
+        // class-based component
+        return renderClassComponent(type, props, contexts);
     } else {
-        // stateless component
-        rendered = componentClass(props, context);
+        // hook-based component
+        return renderHookComponent(type, props, contexts);
     }
-    return rendered;
+}
+
+/**
+ * Create an instance of a class component and call its render method
+ *
+ * @param  {Function} componentClass
+ * @param  {Object} props
+ * @param  {Object} contexts
+ *
+ * @return {VNode|Promise<VNode>}
+ */
+function renderClassComponent(cls, props, contexts) {
+    var component = new cls(props);
+    component.props = props;
+    var state = component.state;
+    if (cls.getDerivedStateFromProps) {
+        var originalState = state;
+        var derivedState = cls.getDerivedStateFromProps(props, originalState);
+        state = {};
+        assign(state, originalState);
+        assign(state, derivedState);
+        component.state = state;
+    } else if (component.componentWillMount) {
+        component.componentWillMount();
+        state = component.state;
+    } else if (component.UNSAFE_componentWillMount) {
+        component.UNSAFE_componentWillMount();
+        state = component.state;
+    }
+    if (isAsyncComponent(component)) {
+        return component.renderAsyncEx();
+    } else {
+        return component.render(props, state);
+    }
+}
+
+/**
+ * Render a functional component
+ *
+ * @param  {Function} func
+ * @param  {Object} props
+ * @param  {Array<Object>} contexts
+ *
+ * @return {VNode|Promise<VNode>}
+ */
+function renderHookComponent(func, props, contexts) {
+    return func(props);
 }
 
 /**
@@ -219,6 +242,7 @@ function getNodeType(node) {
  */
 function getNodeProps(node, type) {
 	var props = assign({}, node.attributes);
+    Object.defineProperty(props, 'children', { value: node.children });
 
     // apply default props
     var defaultProps = type.defaultProps;

@@ -25,15 +25,14 @@ class SyncTestComponent extends Component {
 }
 
 class AsyncTestComponent extends AsyncComponent {
-    renderAsync(meanwhile, props) {
+    async renderAsync(meanwhile, props) {
         meanwhile.show(<div>Loading...</div>, 'initial');
-        return Bluebird.delay(100).then(() => {
-            return (
-                <SyncTestComponent>
-                    {props.children}
-                </SyncTestComponent>
-            );
-        });
+        await Bluebird.delay(100);
+        return (
+            <SyncTestComponent>
+                {props.children}
+            </SyncTestComponent>
+        );
     }
 }
 
@@ -70,15 +69,14 @@ class BrokenSyncComponent extends Component {
 }
 
 class BrokenAsyncComponent extends AsyncComponent {
-    renderAsync(meanwhile, props) {
+    async renderAsync(meanwhile, props) {
         meanwhile.show(<div>Loading...</div>, 'initial');
-        return Bluebird.delay(100).then(() => {
-            return (
-                <BrokenSyncComponent>
-                    {props.children}
-                </BrokenSyncComponent>
-            );
-        });
+        await Bluebird.delay(100);
+        return (
+            <BrokenSyncComponent>
+                {props.children}
+            </BrokenSyncComponent>
+        );
     }
 }
 
@@ -126,55 +124,50 @@ describe('Preact test', function() {
             const promise = harvest(null);
             expect(promise).to.have.property('then').that.is.a('function');
         })
-        it ('should return scalars when given scalars', function() {
+        it ('should return scalars when given scalars', async function() {
             const promises = [
                 harvest(null),
                 harvest('string'),
                 harvest(false),
             ];
-            return Bluebird.all(promises).then((harvested) => {
-                expect(harvested[0]).to.be.null,
-                expect(harvested[1]).to.be.a.string,
-                expect(harvested[2]).to.be.false
-            });
+            const harvested = await Promise.all(promises);
+            expect(harvested[0]).to.be.null,
+            expect(harvested[1]).to.be.a.string,
+            expect(harvested[2]).to.be.false
         })
-        it ('should return the same synchronous element', function() {
+        it ('should return the same synchronous element', async function() {
             const element = <div>Hi!</div>;
-            return harvest(element).then((harvested) => {
-                expect(harvested).to.equal(element);
-            });
+            const harvested = await harvest(element);
+            expect(harvested).to.equal(element);
         })
-        it ('should handle correctly stateless components', function() {
+        it ('should handle correctly stateless components', async function() {
             const contents = <h3>Hi!</h3>;
             const element = <StatelessComponent>{contents}</StatelessComponent>;
-            return harvest(element).then((harvested) => {
-                const context = shallow(harvested);
-                expect(context.contains(contents)).to.be.true;
-            });
+            const harvested = await harvest(element);
+            const context = shallow(harvested);
+            expect(context.contains(contents)).to.be.true;
         })
-        it ('should call componentWillMount()', function() {
+        it ('should call componentWillMount()', async function() {
             const element = (
                 <div>
                     <ComponentWatchingForMount />
                 </div>
             );
-            return harvest(element).then((harvested) => {
-                const context = shallow(harvested);
-                expect(context.text()).to.be.equal('Yes');
-            });
+            const harvested = await harvest(element);
+            const context = shallow(harvested);
+            expect(context.text()).to.be.equal('Yes');
         })
-        it ('should call getDerivedStateFromProps()', function() {
+        it ('should call getDerivedStateFromProps()', async function() {
             const element = (
                 <div>
                     <ComponentWithDerivedState />
                 </div>
             );
-            return harvest(element).then((harvested) => {
-                const context = shallow(harvested);
-                expect(context.text()).to.be.equal('Yes');
-            });
+            const harvested = await harvest(element);
+            const context = shallow(harvested);
+            expect(context.text()).to.be.equal('Yes');
         })
-        it ('should return an element that yield the same string as the sychronous version', function() {
+        it ('should return an element that yield the same string as the sychronous version', async function() {
             const garbage = (
                 <div>
                     <h1>I'm teapot</h1>
@@ -186,16 +179,15 @@ describe('Preact test', function() {
             );
             const syncElement = <SyncTestComponent>{garbage}</SyncTestComponent>;
             const asyncElement = <AsyncTestComponent>{garbage}</AsyncTestComponent>;
-            return harvest(asyncElement).then((harvested) => {
-                const syncHTML = stringify(syncElement);
-                const asyncHTML = stringify(harvested);
-                expect(asyncHTML).to.equal(syncHTML);
+            const harvested = await harvest(asyncElement);
+            const syncHTML = stringify(syncElement);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
 
-                const context = shallow(harvested);
-                expect(context.contains(garbage)).to.be.true;
-            });
+            const context = shallow(harvested);
+            expect(context.contains(garbage)).to.be.true;
         })
-        it ('should handle scenario where an sync component returns an async one', function() {
+        it ('should handle scenario where an sync component returns an async one', async function() {
             const garbage = (
                 <div>
                     <h1>I'm teapot</h1>
@@ -211,16 +203,15 @@ describe('Preact test', function() {
             );
             const syncElement = <SyncTestComponent>{garbage}</SyncTestComponent>;
             const asyncElement = <SyncComponentReturningAsync>{garbage}</SyncComponentReturningAsync>;
-            return harvest(asyncElement).then((harvested) => {
-                const syncHTML = stringify(syncElement);
-                const asyncHTML = stringify(harvested);
-                expect(asyncHTML).to.equal(syncHTML);
+            const harvested = await harvest(asyncElement);
+            const syncHTML = stringify(syncElement);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
 
-                const context = shallow(harvested);
-                expect(context.contains(garbage)).to.be.true;
-            });
+            const context = shallow(harvested);
+            expect(context.contains(garbage)).to.be.true;
         })
-        it ('should handle scenario where an stateless component returns an async one', function() {
+        it ('should handle scenario where an stateless component returns an async one', async function() {
             const garbage = (
                 <div>
                     <h1>I'm teapot</h1>
@@ -236,16 +227,15 @@ describe('Preact test', function() {
             );
             const syncElement = <SyncTestComponent>{garbage}</SyncTestComponent>;
             const asyncElement = <StatelessComponentReturningAsync>{garbage}</StatelessComponentReturningAsync>;
-            return harvest(asyncElement).then((harvested) => {
-                const syncHTML = stringify(syncElement);
-                const asyncHTML = stringify(harvested);
-                expect(asyncHTML).to.equal(syncHTML);
+            const harvested = await harvest(asyncElement);
+            const syncHTML = stringify(syncElement);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
 
-                const context = shallow(harvested);
-                expect(context.contains(garbage)).to.be.true;
-            });
+            const context = shallow(harvested);
+            expect(context.contains(garbage)).to.be.true;
         })
-        it ('should handle async components at various places', function() {
+        it ('should handle async components at various places', async function() {
             const garbage1 = (
                 <div>Hello world</div>
             );
@@ -282,11 +272,10 @@ describe('Preact test', function() {
                     ]
                 </div>
             );
-            return harvest(asyncElement).then((harvested) => {
-                const syncHTML = stringify(syncElement);
-                const asyncHTML = stringify(harvested);
-                expect(asyncHTML).to.equal(syncHTML);
-            });
+            const harvested = await harvest(asyncElement);
+            const syncHTML = stringify(syncElement);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
         })
         it ('should returns a promise that rejects when a sync component is broken', function() {
             const element = <BrokenSyncComponent />;
@@ -296,7 +285,7 @@ describe('Preact test', function() {
             const element = <BrokenAsyncComponent />;
             return expect(harvest(element)).to.eventually.be.rejected;
         })
-        it ('should collect rendering of async elements', function() {
+        it ('should collect rendering of async elements', async function() {
             const garbage = (
                 <div>
                     <h1>I'm teapot</h1>
@@ -312,18 +301,17 @@ describe('Preact test', function() {
             );
             const syncElement = <SyncTestComponent>{garbage}</SyncTestComponent>;
             const asyncElement = <SyncComponentReturningAsync>{garbage}</SyncComponentReturningAsync>;
-            return harvest(asyncElement, { seeds: true }).then((harvested) => {
-                expect(harvested).to.be.an('array').that.has.lengthOf(1);
+            const harvested = await harvest(asyncElement, { seeds: true });
+            expect(harvested).to.be.an('array').that.has.lengthOf(1);
 
-                const entry = harvested[0];
-                expect(entry).to.have.property('type', AsyncTestComponent);
-                expect(entry).to.have.property('props');
-                expect(entry).to.have.property('result');
+            const entry = harvested[0];
+            expect(entry).to.have.property('type', AsyncTestComponent);
+            expect(entry).to.have.property('props');
+            expect(entry).to.have.property('result');
 
-                const syncHTML = stringify(syncElement);
-                const asyncHTML = stringify(entry.result);
-                expect(asyncHTML).to.equal(syncHTML);
-            });
+            const syncHTML = stringify(syncElement);
+            const asyncHTML = stringify(entry.result);
+            expect(asyncHTML).to.equal(syncHTML);
         })
     })
 });
