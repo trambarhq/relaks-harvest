@@ -1,5 +1,9 @@
 import React from 'react';
 
+var ReactMemo = Symbol.for('react.memo');
+var ReactProvider = Symbol.for('react.provider');
+var ReactContext = Symbol.for('react.context');
+
 /**
  * Harvest HTML and text nodes
  *
@@ -44,7 +48,7 @@ function harvestNode(node, contexts, bucket) {
 	}
     var type = getNodeType(node);
     if (!type) {
-        return;
+        return null;
     }
     if (type instanceof Function) {
         // it's a component
@@ -66,18 +70,24 @@ function harvestNode(node, contexts, bucket) {
             // harvest what was rendered
             return harvestNodes(rendered, contexts, bucket);
         }
-    } else if (type.provider) {
+    } else if (type === ReactProvider) {
         // context provider
         var props = getNodeProps(node, type);
+        var contextType = getNodeContextType(node);
         var children = getNodeChildren(node);
-        contexts.push(type);
+        contexts.push({
+            type: contextType,
+            value: props.value
+        });
         var newChildren = harvestNodes(children, contexts, bucket);
         contexts.pop();
         return newChildren;
-    } else if (type.consumer) {
-        if (type.func instanceof Function) {
-            var context = getContext(contexts, type.consumer);
-            var children = type.func(context);
+    } else if (type === ReactContext) {
+        var func = getNodeChildren(node);
+        if (func instanceof Function) {
+            var contextType = getNodeContextType(node);
+            var context = getContext(contexts, contextType);
+            var children = func(context);
             return harvestNodes(children, contexts, bucket);
         } else {
             return null;
@@ -151,15 +161,13 @@ function harvestNodes(nodes, contexts, bucket) {
  * @return {ReactElement|Promise<ReactElement>}
  */
 function renderComponent(type, props, contexts) {
-    var rendered;
     if (type.prototype && type.prototype.render instanceof Function) {
         // class based component
-        rendered = renderClassComponent(type, props, contexts);
+        return renderClassComponent(type, props, contexts);
     } else {
         // hook-based component
-        rendered = renderHookComponent(type, props, contexts);
+        return renderHookComponent(type, props, contexts);
     }
-    return rendered;
 }
 
 /**
@@ -192,11 +200,13 @@ function renderClassComponent(cls, props, contexts) {
         component.UNSAFE_componentWillMount();
         state = component.state;
     }
+    var rendered;
     if (isAsyncComponent(component)) {
-        return component.renderAsyncEx();
+        rendered = component.renderAsyncEx();
     } else {
-        return component.render();
+        rendered = component.render();
     }
+    return rendered;
 }
 
 /**
@@ -230,18 +240,31 @@ function renderHookComponent(func, props, contexts) {
                 },
             	useEffect: function(f) {
                 },
-            	useRef: function() {
-                    var set = function(v) {};
-                    return set;
+                useContext: function(type) {
+                    return getContext(contexts, type);
                 },
-            	useMemo: function(f) {
-                	return f();
+                useReducer: function(reducer, initial, f) {
+                    if (f) {
+                        return f(initial);
+                    } else {
+                        return initial;
+                    }
                 },
                 useCallback: function(f) {
                     return f;
                 },
-                useContext: function(type) {
-                    return getContext(contexts, type);
+                useMemo: function(f) {
+                	return f();
+                },
+                useRef: function() {
+                    var set = function(v) {};
+                    return set;
+                },
+                useImperativeHandle: function() {
+                },
+                useLayoutEffect: function(f) {
+                },
+                useDebugValue: function() {
                 },
             };
             if (func.renderAsyncEx) {
@@ -297,21 +320,29 @@ function assign(dest, src) {
 function getNodeType(node) {
     var type = node.type;
     if (type instanceof Object) {
-        if (type.$$typeof === Symbol.for('react.memo')) {
+        if (type.$$typeof === ReactMemo) {
             type = type.type;
-        } else if (type.$$typeof === Symbol.for('react.provider')) {
-            type = {
-                provider: type,
-                value: node.props.value,
-            };
-        } else if (type.$$typeof === Symbol.for('react.context')) {
-            type = {
-                consumer: type,
-                func: node.props.children,
-            };
+        } else if (type.$$typeof === ReactProvider) {
+            type = ReactProvider;
+        } else if (type.$$typeof === ReactContext) {
+            type = ReactContext;
         }
     }
     return type;
+}
+
+/**
+ * Return a node's context type
+ *
+ * @param  {ReactElement} node
+ *
+ * @return {Object}
+ */
+function getNodeContextType(node) {
+    var type = node.type;
+    if (type instanceof Object) {
+        return type._context;
+    }
 }
 
 /**
@@ -326,7 +357,7 @@ function getContext(contexts, contextType) {
     if (contextType) {
         for (var i = contexts.length - 1; i >= 0; i--) {
             var context = contexts[i];
-            if (context.provider._context === contextType) {
+            if (context.type === contextType) {
                 return context.value;
             }
         }

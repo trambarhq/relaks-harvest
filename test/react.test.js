@@ -1,11 +1,11 @@
 import { delay } from 'bluebird';
 import Chai, { expect } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
-import React, { Component } from 'react';
+import React, { Component, useState, useMemo, useContext, useCallback, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import Enzyme, { shallow } from 'enzyme';
 import Adapter from 'enzyme-adapter-react-16';
-import { AsyncComponent } from 'relaks';
+import Relaks, { AsyncComponent, useProgress } from 'relaks';
 import { harvest } from '../index';
 
 Chai.use(ChaiAsPromised);
@@ -132,6 +132,48 @@ class AsyncComponentUsingContext extends AsyncComponent {
     }
 }
 AsyncComponentUsingContext.contextType = ThemeContext;
+
+function FunctionalComponentUsingState(props) {
+    const { hello } = props;
+    const [ world, setWorld ] = useState('world');
+    return <span>{hello} {world}</span>;
+}
+
+const AsyncFunctionalComponentUsingState = Relaks.memo(async (props) => {
+    const { hello } = props;
+    const [ world, setWorld ] = useState('world');
+    const [ show ] = useProgress(10);
+
+    show(<span>Loading...</span>);
+    await delay(100);
+    show(<span>{hello} {world}</span>);
+});
+
+function FunctionalComponentUsingContext(props) {
+    const context = useContext(ThemeContext);
+    return <span>{context}</span>;
+}
+
+const AsyncFunctionalComponentUsingContext = Relaks.memo(async (props) => {
+    const context = useContext(ThemeContext);
+    const [ show ] = useProgress(10);
+
+    show(<span>Loading...</span>);
+    await delay(100);
+    show(<span>{context}</span>);
+});
+
+function FunctionalComponentUsingOtherHooks(props) {
+    const { name } = props;
+    const memoized = useMemo(() => {
+        return name.toUpperCase();
+    }, [ name ]);
+    const callback = useCallback(() => {
+        console.log('callback');
+    });
+    const ref = useRef();
+    return <span ref={ref} onClick={callback}>Hello {memoized}</span>;
+}
 
 function stringify(element) {
     return renderToStaticMarkup(element);
@@ -396,9 +438,81 @@ describe('React test', function() {
             expect(wrapper.text()).to.equal('dark');
 
             const harvested = await harvest(element);
-            //const syncHTML = stringify(element);
-            //const asyncHTML = stringify(harvested);
-            //expect(asyncHTML).to.equal(syncHTML);
+            const syncHTML = stringify(element);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
+        })
+        it ('should be able to harvest a function component that uses useState', async function() {
+            const element = <FunctionalComponentUsingState hello="hello" />;
+            const harvested = await harvest(element);
+            const syncHTML = stringify(element);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
+        })
+        it ('should be able to harvest an async function component that uses useState', async function() {
+            const syncElement = <FunctionalComponentUsingState hello="hello" />;
+            const asyncElement = <AsyncFunctionalComponentUsingState hello="hello" />;
+            const harvested = await harvest(asyncElement);
+            const syncHTML = stringify(syncElement);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
+        })
+        it ('should be able to harvest a component that uses context', async function() {
+            const element = (
+                <ThemeContext.Provider value="dark">
+                    <div>
+                        <ComponentUsingContext />
+                    </div>
+                </ThemeContext.Provider>
+            );
+            const wrapper = Enzyme.mount(element);
+            expect(wrapper.text()).to.equal('dark');
+
+            const harvested = await harvest(element);
+            const syncHTML = stringify(element);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
+        })
+        it ('should be able to harvest a functional component that uses the default context', async function() {
+            const element = (
+                <div>
+                    <FunctionalComponentUsingContext />
+                </div>
+            );
+            const wrapper = Enzyme.mount(element);
+            expect(wrapper.text()).to.equal('light');
+
+            const harvested = await harvest(element);
+            const syncHTML = stringify(element);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
+        })
+        it ('should be able to harvest an asynchronous component that uses context', async function() {
+            const syncElement = (
+                <ThemeContext.Provider value="dark">
+                    <div>
+                        <FunctionalComponentUsingContext />
+                    </div>
+                </ThemeContext.Provider>
+            );
+            const asyncElement = (
+                <ThemeContext.Provider value="dark">
+                    <div>
+                        <AsyncFunctionalComponentUsingContext />
+                    </div>
+                </ThemeContext.Provider>
+            );
+            const harvested = await harvest(asyncElement);
+            const syncHTML = stringify(syncElement);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
+        })
+        it ('should be able to harvest a component that use other kinds of hooks', async function() {
+            const element = <FunctionalComponentUsingOtherHooks name="Katie" />;
+            const harvested = await harvest(element);
+            const syncHTML = stringify(element);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal(syncHTML);
         })
     })
 });
