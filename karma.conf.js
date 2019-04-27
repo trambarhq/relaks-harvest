@@ -11,7 +11,9 @@ module.exports = function(config) {
         files: [
             'tests.bundle.js',
         ],
-
+        client: {
+            args: parseTestPattern(process.argv),
+        },
         preprocessors: {
             'tests.bundle.js': [ 'webpack', 'sourcemap' ]
         },
@@ -28,6 +30,10 @@ module.exports = function(config) {
 
         webpack: {
             mode: 'development',
+            resolve: {
+                extensions: [ '.js', '.jsx' ],
+                modules: [ Path.resolve('./src'), 'node_modules' ],
+            },
             module: {
                 rules: [
                     {
@@ -36,13 +42,12 @@ module.exports = function(config) {
                         exclude: /node_modules/,
                         query: {
                             presets: [
-                                'env',
+                                [ 'env', { modules: false } ],
                                 'react',
                                 'stage-0',
                             ],
                             plugins: [
                                 'syntax-async-functions',
-                                'syntax-class-properties',
                                 'transform-regenerator',
                                 'transform-runtime',
                             ]
@@ -57,3 +62,13 @@ module.exports = function(config) {
         },
     })
 };
+
+function parseTestPattern(argv) {
+    var index = argv.indexOf('--');
+    var patterns = (index !== -1) ? argv.slice(index + 1) : [];
+    if (patterns.length > 0) {
+        return [ '--grep' ].concat(patterns);
+    } else {
+        return [];
+    }
+}

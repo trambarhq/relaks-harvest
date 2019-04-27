@@ -35,5 +35,3 @@ let appElement = <Application />;
 let appHTMLElement = async harvest(appElement);
 let appHTML = render(appHTMLElement);
 ```
-
-In an real-world implementation, you'll likely return the element from your client-side code in a function. Conversion to HTML can then happen in your server-side code. Such an arrangement avoids importing libraries into the client that are meant only for the server.
