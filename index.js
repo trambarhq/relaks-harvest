@@ -256,8 +256,11 @@ function renderHookComponent(func, props, contexts) {
                 useMemo: function(f) {
                 	return f();
                 },
-                useRef: function() {
-                    var set = function(v) {};
+                useRef: function(initial) {
+                    var set = function(v) {
+                        set.current = v;
+                    };
+                    set.current = initial;
                     return set;
                 },
                 useImperativeHandle: function() {
