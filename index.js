@@ -295,6 +295,9 @@ function renderHookComponent(func, props, contexts) {
  * @return {ReactElement}
  */
 function replaceChildren(node, newChildren) {
+    if (process.env.NODE_ENV !== 'production') {
+        newChildren = React.Children.toArray(newChildren);
+    }
     return React.cloneElement(node, undefined, newChildren);
 }
 
