@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.0.2
+
+* Fixed missing key warning
+
 ## 2.0.1
 
 * Fixed handling of useRef hook
