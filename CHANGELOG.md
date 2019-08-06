@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.0.1
+
+* Fixed handling of useRef hook
+
 ## 2.0.0
 
 * Reworked code to support Relaks 2
