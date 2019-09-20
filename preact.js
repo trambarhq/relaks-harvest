@@ -1,5 +1,7 @@
 import Preact from 'preact';
 
+var harvestFlag = false;
+
 /**
  * Harvest HTML and text nodes
  *
@@ -9,24 +11,35 @@ import Preact from 'preact';
  * @return {Promise<Vnode>}
  */
 function harvest(node, options) {
+    // see if we're collecting seeds
+    var bucket = (options && options.seeds) ? [] : null;
+    var harvested;
     try {
-        // see if we're collecting seeds
-        var bucket = (options && options.seeds) ? [] : null;
-        var harvested = harvestNode(node, {}, bucket);
+        harvestFlag = true;
+        harvested = harvestNode(node, {}, bucket);
         if (!isPromise(harvested)) {
             // always return a promise
             harvested = Promise.resolve(harvested);
         }
-        if (bucket) {
-            return harvested.then(function() {
-                return bucket;
-            });
-        } else {
-            return harvested;
-        }
     } catch (err) {
-        return Promise.reject(err);
+        harvested =  Promise.reject(err);
     }
+    return harvested.then(function(result) {
+        harvestFlag = false;
+        return (bucket) ? bucket : result;
+    }).catch(function(err) {
+        harvestFlag = false;
+        throw err;
+    });
+}
+
+/**
+ * Return true when we're in the middle harvesting node
+ *
+ * @return {Boolean}
+ */
+function harvesting() {
+    return harvestFlag;
 }
 
 /**

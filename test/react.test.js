@@ -3,10 +3,10 @@ import Chai, { expect } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
 import React, { Component, useState, useMemo, useContext, useCallback, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import Enzyme, { shallow } from 'enzyme';
+import Enzyme, { shallow, mount } from 'enzyme';
 import Adapter from 'enzyme-adapter-react-16';
 import Relaks, { AsyncComponent, useProgress } from 'relaks';
-import { harvest } from '../index';
+import { harvest, harvesting } from '../index';
 
 Chai.use(ChaiAsPromised);
 
@@ -178,6 +178,14 @@ function FunctionalComponentUsingOtherHooks(props) {
 function stringify(element) {
     return renderToStaticMarkup(element);
 }
+
+const AsyncTestHarvestingComponent = Relaks.memo(async (props) => {
+    const [ show ] = useProgress(0);
+    const text = harvesting() + '';
+    show(<span>{text}</span>, 'initial');
+    await delay(100);
+    show(<span>{text}</span>);
+});
 
 describe('React test', function() {
     describe('#harvest()', function() {
@@ -513,6 +521,18 @@ describe('React test', function() {
             const syncHTML = stringify(element);
             const asyncHTML = stringify(harvested);
             expect(asyncHTML).to.equal(syncHTML);
+        })
+    })
+    describe('#harvesting()', async function() {
+        it ('should return true during harvest', async function() {
+            const asyncElement = <AsyncTestHarvestingComponent />;
+            const harvested = await harvest(asyncElement);
+            const asyncHTML = stringify(harvested);
+            expect(asyncHTML).to.equal('<span>true</span>');
+
+            const wrapper = mount(asyncElement);
+            const syncHTML = wrapper.html();
+            expect(syncHTML).to.equal('<span>false</span>');
         })
     })
 });

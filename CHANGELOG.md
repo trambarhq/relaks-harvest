@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.0.3
+
+* Added harvesting()
+
 ## 2.0.2
 
 * Fixed missing key warning
