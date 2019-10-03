@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.0.4
+
+* Fixed context handling
+
 ## 2.0.3
 
 * Added harvesting()

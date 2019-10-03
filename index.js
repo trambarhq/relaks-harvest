@@ -88,12 +88,12 @@ function harvestNode(node, contexts, bucket) {
         var props = getNodeProps(node, type);
         var contextType = getNodeContextType(node);
         var children = getNodeChildren(node);
+        contexts = contexts.slice();
         contexts.push({
             type: contextType,
             value: props.value
         });
         var newChildren = harvestNodes(children, contexts, bucket);
-        contexts.pop();
         return newChildren;
     } else if (type === ReactContext) {
         var func = getNodeChildren(node);
