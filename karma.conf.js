@@ -42,14 +42,13 @@ module.exports = function(config) {
                         exclude: /node_modules/,
                         query: {
                             presets: [
-                                [ 'env', { modules: false } ],
-                                'react',
-                                'stage-0',
+                                [ '@babel/env', { modules: false } ],
+                                [ '@babel/react' ],
                             ],
                             plugins: [
+                                '@babel/transform-regenerator',
+                                '@babel/transform-runtime',
                                 'syntax-async-functions',
-                                'transform-regenerator',
-                                'transform-runtime',
                             ]
                         }
                     }
