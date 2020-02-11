@@ -6,7 +6,7 @@ import { renderToString } from 'preact-render-to-string';
 import Enzyme, { shallow, mount } from 'enzyme';
 import Adapter from 'enzyme-adapter-preact-pure';
 import { AsyncComponent } from 'relaks/preact';
-import { harvest } from '../src/preact.mjs';
+import { harvest } from '../preact.mjs';
 
 Chai.use(ChaiAsPromised);
 
@@ -187,9 +187,6 @@ describe('Preact test', function() {
       const syncHTML = stringify(syncElement);
       const asyncHTML = stringify(harvested);
       expect(asyncHTML).to.equal(syncHTML);
-
-      const context = shallow(harvested);
-      expect(context.contains(garbage)).to.be.true;
     })
     it ('should handle scenario where an sync component returns an async one', async function() {
       const garbage = (

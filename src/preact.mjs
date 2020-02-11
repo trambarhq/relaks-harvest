@@ -172,15 +172,20 @@ function renderComponent(type, props, contexts) {
 function renderClassComponent(cls, props, contexts) {
   const component = new cls(props);
   component.props = props;
+  if (!component.state) {
+    component.state = {};
+  }
+  component.__s = component.state;
   if (cls.getDerivedStateFromProps) {
     const originalState = component.state;
     const derivedState = cls.getDerivedStateFromProps(props, originalState);
-    component.state = { ...originalState, ...derivedState };
+    component.state = component.__s = { ...originalState, ...derivedState };
   } else if (component.componentWillMount) {
     component.componentWillMount();
   } else if (component.UNSAFE_componentWillMount) {
     component.UNSAFE_componentWillMount();
   }
+  component.state = component.__s;
   if (isAsyncComponent(component)) {
     return component.renderAsyncEx(props, component.state);
   } else {

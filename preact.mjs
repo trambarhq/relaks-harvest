@@ -242,15 +242,23 @@ function renderClassComponent(cls, props, contexts) {
   var component = new cls(props);
   component.props = props;
 
+  if (!component.state) {
+    component.state = {};
+  }
+
+  component.__s = component.state;
+
   if (cls.getDerivedStateFromProps) {
     var originalState = component.state;
     var derivedState = cls.getDerivedStateFromProps(props, originalState);
-    component.state = _objectSpread2({}, originalState, {}, derivedState);
+    component.state = component.__s = _objectSpread2({}, originalState, {}, derivedState);
   } else if (component.componentWillMount) {
     component.componentWillMount();
   } else if (component.UNSAFE_componentWillMount) {
     component.UNSAFE_componentWillMount();
   }
+
+  component.state = component.__s;
 
   if (isAsyncComponent(component)) {
     return component.renderAsyncEx(props, component.state);
@@ -295,7 +303,13 @@ function replaceChildren(node, newChildren) {
 
 
 function getNodeType(node) {
-  return node.nodeName;
+  if (node.nodeName) {
+    return node.nodeName;
+  }
+
+  if (node.type) {
+    return node.type;
+  }
 }
 /**
  * Return the props of a node
@@ -308,11 +322,17 @@ function getNodeType(node) {
 
 
 function getNodeProps(node, type) {
-  var props = _objectSpread2({}, node.attributes);
+  var props;
 
-  Object.defineProperty(props, 'children', {
-    value: node.children
-  }); // apply default props
+  if (node.attributes) {
+    props = _objectSpread2({}, node.attributes);
+    Object.defineProperty(props, 'children', {
+      value: node.children
+    });
+  } else {
+    props = _objectSpread2({}, node.props);
+  } // apply default props
+
 
   for (var name in type.defaultProps) {
     if (props[name] === undefined) {
@@ -332,7 +352,13 @@ function getNodeProps(node, type) {
 
 
 function getNodeChildren(node) {
-  return node.children;
+  if (node.children) {
+    return node.children;
+  }
+
+  if (node.props) {
+    return node.props.children;
+  }
 }
 /**
  * Return true if the given component is an AsyncComponent

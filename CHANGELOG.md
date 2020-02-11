@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2.1.0
+
+* Upgraded to ES6
+
 ## 2.0.4
 
 * Fixed context handling
