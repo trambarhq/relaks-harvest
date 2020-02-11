@@ -1,10 +1,10 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('preact')) :
-  typeof define === 'function' && define.amd ? define(['exports', 'preact'], factory) :
-  (global = global || self, factory(global.RelaksHarvest = {}, global.Preact));
-}(this, (function (exports, Preact) { 'use strict';
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('react')) :
+  typeof define === 'function' && define.amd ? define(['exports', 'react'], factory) :
+  (global = global || self, factory(global.RelaksHarvest = {}, global.React));
+}(this, (function (exports, React) { 'use strict';
 
-  Preact = Preact && Preact.hasOwnProperty('default') ? Preact['default'] : Preact;
+  React = React && React.hasOwnProperty('default') ? React['default'] : React;
 
   function _defineProperty(obj, key, value) {
     if (key in obj) {
@@ -55,14 +55,17 @@
     return target;
   }
 
+  var ReactMemo = Symbol["for"]('react.memo');
+  var ReactProvider = Symbol["for"]('react.provider');
+  var ReactContext = Symbol["for"]('react.context');
   var harvestFlag = false;
   /**
    * Harvest HTML and text nodes
    *
-   * @param  {VNode} node
+   * @param  {ReactElement} node
    * @param  {Object|undefined} options
    *
-   * @return {Promise<Vnode>}
+   * @return {Promise<ReactElement>}
    */
 
   function harvest(node, options) {
@@ -72,7 +75,7 @@
 
     try {
       harvestFlag = true;
-      harvested = harvestNode(node, {}, bucket);
+      harvested = harvestNode(node, [], bucket);
 
       if (!isPromise(harvested)) {
         // always return a promise
@@ -103,11 +106,11 @@
   /**
    * Harvest HTML and text nodes
    *
-   * @param  {VNode} node
-   * @param  {Array<Object>} contexts
+   * @param  {ReactElement} node
+   * @param  {Array} contexts
    * @param  {undefined|Array}
    *
-   * @return {VNode|Array|null|Promise<VNode|null>}
+   * @return {ReactElement|Array|null|Promise<ReactElement|null>}
    */
 
 
@@ -118,10 +121,14 @@
 
     var type = getNodeType(node);
 
+    if (!type) {
+      return null;
+    }
+
     if (type instanceof Function) {
       // it's a component
       var props = getNodeProps(node, type);
-      var rendered = renderComponent(type, props);
+      var rendered = renderComponent(type, props, contexts);
 
       if (isPromise(rendered)) {
         // wait for asynchronous rendering to finish
@@ -138,24 +145,41 @@
         });
       } else {
         // harvest what was rendered
-        if (rendered instanceof Array) {
-          return harvestNodes(rendered, contexts, bucket);
-        } else {
-          return harvestNode(rendered, contexts, bucket);
-        }
+        return harvestNodes(rendered, contexts, bucket);
+      }
+    } else if (type === ReactProvider) {
+      // context provider
+      var _props = getNodeProps(node, type);
+
+      var contextType = getNodeContextType(node);
+      var children = getNodeChildren(node);
+      contexts = contexts.slice();
+      contexts.push({
+        type: contextType,
+        value: _props.value
+      });
+      return harvestNodes(children, contexts, bucket);
+    } else if (type === ReactContext) {
+      var func = getNodeChildren(node);
+
+      if (func instanceof Function) {
+        var _contextType = getNodeContextType(node);
+
+        var context = getContext(contexts, _contextType);
+
+        var _children = func(context);
+
+        return harvestNodes(_children, contexts, bucket);
+      } else {
+        return null;
       }
     } else {
       // harvest HTML+text nodes from children
-      var children = getNodeChildren(node);
-      var newChildren;
+      var _children2 = getNodeChildren(node);
 
-      if (children instanceof Array) {
-        newChildren = harvestNodes(children, contexts, bucket);
-      } else {
-        newChildren = harvestNode(children, contexts, bucket);
-      }
+      var newChildren = harvestNodes(_children2, contexts, bucket);
 
-      if (newChildren === children) {
+      if (newChildren === _children2) {
         // no change
         return !bucket ? node : null;
       }
@@ -174,8 +198,8 @@
   /**
    * Harvest HTML and text nodes from an array
    *
-   * @param  {Array<VNode>} node
-   * @param  {Array<Object>} contexts
+   * @param  {Array<ReactElement>} node
+   * @param  {Object} contexts
    * @param  {undefined|Array} bucket
    *
    * @return {Array|Promise<Array>}
@@ -183,6 +207,10 @@
 
 
   function harvestNodes(nodes, contexts, bucket) {
+    if (!(nodes instanceof Array)) {
+      return harvestNode(nodes, contexts, bucket);
+    }
+
     var changed = false;
     var asyncRenderingRequired = false;
     var newNodes = nodes.map(function (element) {
@@ -214,23 +242,23 @@
     }
   }
   /**
-   * Create an instance of a component and call its render method
+   * Render a component
    *
    * @param  {Function} type
    * @param  {Object} props
    * @param  {Array<Object>} contexts
    *
-   * @return {VNode|Promise<VNode>}
+   * @return {ReactElement|Promise<ReactElement>}
    */
 
 
   function renderComponent(type, props, contexts) {
     if (type.prototype && type.prototype.render instanceof Function) {
-      // class-based component
-      return renderClassComponent(type, props);
+      // class based component
+      return renderClassComponent(type, props, contexts);
     } else {
       // hook-based component
-      return renderHookComponent(type, props);
+      return renderHookComponent(type, props, contexts);
     }
   }
   /**
@@ -240,29 +268,36 @@
    * @param  {Object} props
    * @param  {Object} contexts
    *
-   * @return {VNode|Promise<VNode>}
+   * @return {ReactElement|Promise<ReactElement>}
    */
 
 
   function renderClassComponent(cls, props, contexts) {
     var component = new cls(props);
     component.props = props;
+    component.context = getContext(contexts, cls.contextType);
 
     if (cls.getDerivedStateFromProps) {
       var originalState = component.state;
       var derivedState = cls.getDerivedStateFromProps(props, originalState);
       component.state = _objectSpread2({}, originalState, {}, derivedState);
     } else if (component.componentWillMount) {
+      component.updater = ReactUpdater;
       component.componentWillMount();
     } else if (component.UNSAFE_componentWillMount) {
+      component.updater = ReactUpdater;
       component.UNSAFE_componentWillMount();
     }
 
+    var rendered;
+
     if (isAsyncComponent(component)) {
-      return component.renderAsyncEx(props, component.state);
+      rendered = component.renderAsyncEx();
     } else {
-      return component.render(props, component.state);
+      rendered = component.render();
     }
+
+    return rendered;
   }
   /**
    * Render a functional component
@@ -271,42 +306,167 @@
    * @param  {Object} props
    * @param  {Array<Object>} contexts
    *
-   * @return {VNode|Promise<VNode>}
+   * @return {ReactElement|Promise<ReactElement>}
    */
 
 
   function renderHookComponent(func, props, contexts) {
-    return func(props);
+    var ReactCurrentDispatcher;
+
+    for (var name in React) {
+      var value = React[name];
+
+      if (value instanceof Object) {
+        if (value.ReactCurrentDispatcher) {
+          ReactCurrentDispatcher = value.ReactCurrentDispatcher;
+        }
+      }
+    }
+
+    var rendered;
+
+    if (ReactCurrentDispatcher) {
+      var prevDispatcher = ReactCurrentDispatcher.current;
+
+      try {
+        ReactCurrentDispatcher.current = {
+          useState: function useState(initial) {
+            var set = function set(v) {};
+
+            return [initial, set];
+          },
+          useEffect: function useEffect(f) {},
+          useContext: function useContext(type) {
+            return getContext(contexts, type);
+          },
+          useReducer: function useReducer(reducer, initial, f) {
+            if (f) {
+              return f(initial);
+            } else {
+              return initial;
+            }
+          },
+          useCallback: function useCallback(f) {
+            return f;
+          },
+          useMemo: function useMemo(f) {
+            return f();
+          },
+          useRef: function useRef(initial) {
+            var set = function set(v) {
+              set.current = v;
+            };
+
+            set.current = initial;
+            return set;
+          },
+          useImperativeHandle: function useImperativeHandle() {},
+          useLayoutEffect: function useLayoutEffect(f) {},
+          useDebugValue: function useDebugValue() {}
+        };
+
+        if (func.renderAsyncEx) {
+          rendered = func.renderAsyncEx(props);
+        } else {
+          var context = getContext(contexts, func.contextType);
+          rendered = func(props, context);
+        }
+      } finally {
+        ReactCurrentDispatcher.current = prevDispatcher;
+      }
+    } else {
+      var _context = getContext(contexts, func.contextType);
+
+      rendered = func(props, _context);
+    }
+
+    return rendered;
   }
   /**
    * Return a new node if children are different
    *
-   * @param  {VNode} node
+   * @param  {ReactElement} node
    * @param  {Array} newChildren
    *
-   * @return {VNode}
+   * @return {ReactElement}
    */
 
 
   function replaceChildren(node, newChildren) {
-    return Preact.cloneElement(node, undefined, newChildren);
+    if (process.env.NODE_ENV !== 'production') {
+      // prevent warning about missing keys 
+      newChildren = React.Children.toArray(newChildren);
+    }
+
+    return React.cloneElement(node, undefined, newChildren);
   }
   /**
    * Return a node's type
    *
-   * @param  {VNode} node
+   * @param  {ReactElement} node
    *
    * @return {String|Function}
    */
 
 
   function getNodeType(node) {
-    return node.nodeName;
+    var type = node.type;
+
+    if (type instanceof Object) {
+      if (type.$$typeof === ReactMemo) {
+        type = type.type;
+      } else if (type.$$typeof === ReactProvider) {
+        type = ReactProvider;
+      } else if (type.$$typeof === ReactContext) {
+        type = ReactContext;
+      }
+    }
+
+    return type;
+  }
+  /**
+   * Return a node's context type
+   *
+   * @param  {ReactElement} node
+   *
+   * @return {Object}
+   */
+
+
+  function getNodeContextType(node) {
+    var type = node.type;
+
+    if (type instanceof Object) {
+      return type._context;
+    }
+  }
+  /**
+   * Look for a context
+   *
+   * @param  {Array<Object>} contexts
+   * @param  {Object} contextType
+   *
+   * @return {*}
+   */
+
+
+  function getContext(contexts, contextType) {
+    if (contextType) {
+      for (var i = contexts.length - 1; i >= 0; i--) {
+        var context = contexts[i];
+
+        if (context.type === contextType) {
+          return context.value;
+        }
+      }
+
+      return contextType._currentValue;
+    }
   }
   /**
    * Return the props of a node
    *
-   * @param  {VNode} node
+   * @param  {ReactElement} node
    * @param  {Function} type
    *
    * @return {Object}
@@ -314,10 +474,10 @@
 
 
   function getNodeProps(node, type) {
-    var props = _objectSpread2({}, node.attributes);
+    var props = _objectSpread2({}, node.props);
 
     Object.defineProperty(props, 'children', {
-      value: node.children
+      value: node.props.children
     }); // apply default props
 
     for (var name in type.defaultProps) {
@@ -331,14 +491,16 @@
   /**
    * Return the children of a node
    *
-   * @param  {VNode} node
+   * @param  {ReactElement} node
    *
    * @return {*}
    */
 
 
   function getNodeChildren(node) {
-    return node.children;
+    if (node.props) {
+      return node.props.children;
+    }
   }
   /**
    * Return true if the given component is an AsyncComponent
@@ -364,6 +526,22 @@
   function isPromise(value) {
     return value instanceof Object && value.then instanceof Function;
   }
+
+  var ReactUpdater = {
+    enqueueCallback: function enqueueCallback(inst, f) {
+      f();
+    },
+    enqueueForceUpdate: function enqueueForceUpdate(inst) {},
+    enqueueReplaceState: function enqueueReplaceState(inst, state) {
+      inst.state = _objectSpread2({}, inst, {}, state);
+    },
+    enqueueSetState: function enqueueSetState(inst, partialState) {
+      inst.state = _objectSpread2({}, inst.state, {}, partialState);
+    },
+    isMounted: function isMounted() {
+      return true;
+    }
+  };
 
   exports.harvest = harvest;
   exports.harvesting = harvesting;
