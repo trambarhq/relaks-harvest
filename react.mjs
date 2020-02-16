@@ -305,19 +305,8 @@ function renderClassComponent(cls, props, contexts) {
 
 
 function renderHookComponent(func, props, contexts) {
-  var ReactCurrentDispatcher;
-
-  for (var name in React) {
-    var value = React[name];
-
-    if (value instanceof Object) {
-      if (value.ReactCurrentDispatcher) {
-        ReactCurrentDispatcher = value.ReactCurrentDispatcher;
-      }
-    }
-  }
-
   var rendered;
+  var ReactCurrentDispatcher = getDispatcherRef();
 
   if (ReactCurrentDispatcher) {
     var prevDispatcher = ReactCurrentDispatcher.current;
@@ -376,6 +365,32 @@ function renderHookComponent(func, props, contexts) {
 
   return rendered;
 }
+
+var dispatcherRef;
+/**
+ * Look for React internal state 'ReactCurrentDispatcher'
+ *
+ * @return {Object}
+ */
+
+function getDispatcherRef() {
+  if (dispatcherRef === undefined) {
+    dispatcherRef = null;
+
+    for (var name in React) {
+      var value = React[name];
+
+      if (value instanceof Object) {
+        if (value.ReactCurrentDispatcher) {
+          dispatcherRef = value.ReactCurrentDispatcher;
+          break;
+        }
+      }
+    }
+  }
+
+  return dispatcherRef;
+}
 /**
  * Return a new node if children are different
  *
@@ -388,7 +403,7 @@ function renderHookComponent(func, props, contexts) {
 
 function replaceChildren(node, newChildren) {
   if (process.env.NODE_ENV !== 'production') {
-    // prevent warning about missing keys 
+    // prevent warning about missing keys
     newChildren = React.Children.toArray(newChildren);
   }
 
