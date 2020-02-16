@@ -2,7 +2,7 @@
   "name": "relaks-harvest",
   "description": "Harvest HTML and text nodes from asynchronous Relaks components",
   "author": "Chung Leong",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "main": "./react",
   "module": "./react.mjs",
   "preferGlobal": false,
