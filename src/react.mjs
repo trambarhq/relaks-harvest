@@ -225,17 +225,8 @@ function renderClassComponent(cls, props, contexts) {
  * @return {ReactElement|Promise<ReactElement>}
  */
 function renderHookComponent(func, props, contexts) {
-  let ReactCurrentDispatcher;
-  for (let name in React) {
-    const value = React[name];
-    if (value instanceof Object) {
-      if (value.ReactCurrentDispatcher) {
-        ReactCurrentDispatcher = value.ReactCurrentDispatcher;
-      }
-    }
-  }
-
   let rendered;
+  const ReactCurrentDispatcher = getDispatcherRef();
   if (ReactCurrentDispatcher) {
     const prevDispatcher = ReactCurrentDispatcher.current;
     try {
@@ -292,6 +283,29 @@ function renderHookComponent(func, props, contexts) {
   return rendered;
 }
 
+let dispatcherRef;
+
+/**
+ * Look for React internal state 'ReactCurrentDispatcher'
+ *
+ * @return {Object}
+ */
+function getDispatcherRef() {
+  if (dispatcherRef === undefined) {
+    dispatcherRef = null;
+    for (let name in React) {
+      const value = React[name];
+      if (value instanceof Object) {
+        if (value.ReactCurrentDispatcher) {
+          dispatcherRef = value.ReactCurrentDispatcher;
+          break;
+        }
+      }
+    }
+  }
+  return dispatcherRef;
+}
+
 /**
  * Return a new node if children are different
  *
@@ -302,7 +316,7 @@ function renderHookComponent(func, props, contexts) {
  */
 function replaceChildren(node, newChildren) {
   if (process.env.NODE_ENV !== 'production') {
-    // prevent warning about missing keys 
+    // prevent warning about missing keys
     newChildren = React.Children.toArray(newChildren);
   }
   return React.cloneElement(node, undefined, newChildren);
