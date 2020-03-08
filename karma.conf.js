@@ -24,9 +24,10 @@ module.exports = function(config) {
       'karma-mocha',
       'karma-sourcemap-loader',
       'karma-webpack',
+      'karma-spec-reporter',
     ],
 
-    reporters: [ 'progress' ],
+    reporters: [ 'spec' ],
 
     webpack: {
       mode: 'development',
